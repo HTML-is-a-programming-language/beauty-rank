@@ -1,0 +1,39 @@
+name: 뷰티랭크 월간 업데이트
+
+on:
+  schedule:
+    - cron: "0 17 1 * *"   # 매월 1일 02:00 KST (UTC 17:00 전날)
+  workflow_dispatch:        # 수동 실행 버튼
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120    # 최대 2시간
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: 의존성 설치
+        run: |
+          pip install -r scraper/requirements.txt
+          playwright install chromium --with-deps
+
+      - name: 파이프라인 실행
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:      ${{ secrets.SUPABASE_KEY }}
+        run: |
+          cd scraper
+          python pipeline.py
+
+      - name: 실행 결과 알림 (실패 시)
+        if: failure()
+        run: echo "파이프라인 실패! GitHub Actions 로그를 확인하세요."
