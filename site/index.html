@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뷰티랭크 — 성분 분석 기반 화장품 순위</title>
+<meta name="description" content="올리브영 판매 제품의 성분을 AI로 분석한 화장품 순위">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+
+<!-- Supabase JS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+<style>
+:root {
+  --rose:#c9666b; --rose-lt:#fff0f1; --rose-bd:#f0c0c2;
+  --gold:#c9a227; --silver:#9ba5aa; --bronze:#cd7f4a;
+  --bg:#f8f6f4; --surface:#fff; --text1:#1a1a1a; --text2:#666; --text3:#999;
+  --border:#e8e4e0; --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text1);font-size:14px}
+
+/* 상단 광고 */
+.ad-top{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 24px;text-align:center}
+.ad-slot{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1.5px dashed var(--rose-bd);border-radius:6px;color:var(--text3);font-size:12px;cursor:pointer;transition:background .15s}
+.ad-slot:hover{background:var(--rose-lt)}
+.ad-slot-top{width:100%;max-width:728px;height:72px}
+.ad-slot-side{width:100%;height:220px;flex-direction:column}
+.ad-slot span{font-size:11px;color:var(--rose);font-weight:500}
+
+/* 헤더 */
+header{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200}
+.header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:58px}
+.logo{font-family:'Playfair Display',serif;font-size:22px;color:var(--rose)}
+.logo em{font-style:italic;font-weight:400}
+.updated-badge{font-size:11px;color:var(--text3);background:#f0f0f0;border-radius:20px;padding:3px 10px}
+
+/* 레이아웃 */
+.layout{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:210px 1fr;gap:20px;padding:20px 24px}
+
+/* 사이드바 */
+.sidebar{display:flex;flex-direction:column;gap:14px}
+.sidebar-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.sidebar-head{padding:10px 14px;font-size:11px;font-weight:500;letter-spacing:1px;color:var(--text3);text-transform:uppercase;border-bottom:1px solid var(--border)}
+.cat-parent{display:flex;align-items:center;justify-content:space-between;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;transition:background .12s}
+.cat-parent:hover{background:#fafafa}
+.cat-parent.open{color:var(--rose)}
+.cat-arrow{font-size:11px;color:var(--text3);transition:transform .2s}
+.cat-parent.open .cat-arrow{transform:rotate(90deg);color:var(--rose)}
+.cat-children{display:none}
+.cat-children.open{display:block}
+.cat-child{padding:5px 14px 5px 24px;font-size:12px;color:var(--text2);cursor:pointer;transition:color .12s;line-height:1.8}
+.cat-child:hover{color:var(--rose)}
+.cat-child.active{color:var(--rose);font-weight:500}
+.cat-child.empty{color:var(--text3);pointer-events:none}
+.cat-child.empty::after{content:" (준비중)";font-size:10px}
+
+/* 콘텐츠 */
+.content{min-width:0}
+.info-banner{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--rose);border-radius:var(--radius);padding:10px 16px;font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:14px}
+.content-top{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:12px}
+.content-title{font-family:'Playfair Display',serif;font-size:22px}
+.content-sub{font-size:12px;color:var(--text3);margin-top:3px}
+.sort-pills{display:flex;gap:6px}
+.pill{font-size:11px;padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--text2);white-space:nowrap}
+.pill.active{background:var(--rose);color:#fff;border-color:var(--rose)}
+.pill.locked{opacity:.45}
+.pill .badge{font-size:9px;background:rgba(0,0,0,.08);border-radius:8px;padding:1px 4px;margin-left:3px}
+
+/* 제품 카드 */
+.product-list{display:flex;flex-direction:column;gap:8px}
+.product-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;display:grid;grid-template-columns:34px 76px 1fr 64px;align-items:center;gap:14px;text-decoration:none;color:inherit;transition:border-color .15s,transform .1s}
+.product-card:hover{border-color:var(--rose-bd);transform:translateY(-1px)}
+.product-card.gold{border-left:3px solid var(--gold)}
+.product-card.silver{border-left:3px solid var(--silver)}
+.product-card.bronze{border-left:3px solid var(--bronze)}
+.rank-num{font-family:'Playfair Display',serif;font-size:22px;text-align:center;color:var(--text3)}
+.gold .rank-num{color:var(--gold)}
+.silver .rank-num{color:var(--silver)}
+.bronze .rank-num{color:var(--bronze)}
+.product-img{width:72px;height:72px;border-radius:8px;border:1px solid var(--border);overflow:hidden;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0}
+.product-img img{width:100%;height:100%;object-fit:cover}
+.p-brand{font-size:11px;color:var(--text3);margin-bottom:3px}
+.p-name{font-size:14px;font-weight:500;line-height:1.4;margin-bottom:7px}
+.p-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px}
+.tag-good{background:#eaf3de;color:#3b6d11}
+.tag-warn{background:#faeeda;color:#854f0b}
+.p-summary{font-size:11px;color:var(--text2)}
+.score-box{text-align:center}
+.score-ring{width:56px;height:56px;border-radius:50%;border:2.5px solid var(--rose);display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto 4px}
+.score-num{font-size:20px;font-weight:700;color:var(--rose);line-height:1}
+.score-unit{font-size:10px;color:var(--text3)}
+.score-grade{font-size:11px;font-weight:500;color:var(--rose)}
+
+/* 로딩 / 빈 상태 */
+.empty-state{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:48px 24px;text-align:center}
+.empty-state h3{font-size:16px;color:var(--text2);margin-bottom:8px}
+.empty-state p{font-size:13px;color:var(--text3);line-height:1.7}
+.loading{text-align:center;padding:40px;color:var(--text3);font-size:13px}
+
+/* 광고 */
+.ad-mid{background:var(--surface);border:1.5px dashed var(--rose-bd);border-radius:var(--radius);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;margin:10px 0;cursor:pointer}
+.ad-mid:hover{background:var(--rose-lt)}
+.ad-mid-left{display:flex;align-items:center;gap:12px}
+.ad-mid-title{font-size:13px;font-weight:500;color:var(--rose)}
+.ad-mid-sub{font-size:11px;color:var(--text3)}
+.ad-mid-arrow{font-size:12px;color:var(--rose);border:1px solid var(--rose-bd);border-radius:20px;padding:4px 12px}
+.ad-bottom{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:14px}
+.ad-bottom .ad-slot{min-height:110px;border-radius:var(--radius);border:1.5px dashed var(--rose-bd);flex-direction:column;gap:6px;display:flex}
+
+footer{text-align:center;padding:32px 24px;font-size:12px;color:var(--text3);line-height:2;border-top:1px solid var(--border);margin-top:40px}
+footer a{color:var(--rose);text-decoration:none}
+</style>
+</head>
+<body>
+
+<!-- ★ Supabase 설정 — 본인 값으로 교체 -->
+<script>
+const SUPABASE_URL  = "https://xxxxxxxxxxxxxxxx.supabase.co";  // ← 교체
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";  // ← 교체
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+</script>
+
+<div class="ad-top">
+  <div class="ad-slot ad-slot-top"><span>Google AdSense — 상단 배너 728×90</span></div>
+</div>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">뷰티<em>랭크</em></div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <div class="updated-badge" id="updated-badge">로딩 중...</div>
+      <div style="font-size:12px;color:var(--text3)">성분 분석 기반 화장품 순위</div>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-card">
+      <div class="sidebar-head">카테고리</div>
+      <div id="cat-nav"></div>
+    </div>
+    <div class="ad-slot ad-slot-side" style="border:1.5px dashed var(--rose-bd);border-radius:var(--radius);background:var(--surface)">
+      <div style="font-size:22px">🍀</div>
+      <span>올리브영 큐레이터</span>
+      <div style="font-size:11px;color:var(--text3)">160×600</div>
+    </div>
+  </aside>
+
+  <main class="content">
+    <div class="info-banner">
+      📌 성분 분석 점수는 EWG 위험도·유효 기능성 성분 비율·자극 성분 포함 여부를 종합해 산정됩니다.
+      올리브영 판매순 기준 상위 10개 제품을 AI가 매월 자동 분석합니다.
+    </div>
+    <div class="content-top">
+      <div>
+        <div class="content-title" id="page-title">카테고리를 선택하세요</div>
+        <div class="content-sub" id="page-sub">성분 분석 기준</div>
+      </div>
+      <div class="sort-pills">
+        <div class="pill active">성분 분석</div>
+        <div class="pill locked">판매량<span class="badge">준비중</span></div>
+        <div class="pill locked">리뷰<span class="badge">준비중</span></div>
+        <div class="pill locked">트렌드<span class="badge">준비중</span></div>
+      </div>
+    </div>
+    <div class="product-list" id="product-list">
+      <div class="loading">데이터를 불러오는 중...</div>
+    </div>
+    <div class="ad-mid">
+      <div class="ad-mid-left">
+        <div style="font-size:24px">🛒</div>
+        <div><div class="ad-mid-title">쿠팡 파트너스 광고 영역</div><div class="ad-mid-sub">제품 구매 링크 · 수수료 수익</div></div>
+      </div>
+      <div class="ad-mid-arrow">설정하기 →</div>
+    </div>
+    <div class="ad-bottom">
+      <div class="ad-slot"><span>Google AdSense</span><div style="font-size:11px;color:var(--text3)">300×250</div></div>
+      <div class="ad-slot"><span>화장품 브랜드 광고</span><div style="font-size:11px;color:var(--text3)">300×250</div></div>
+      <div class="ad-slot"><span>올리브영 큐레이터</span><div style="font-size:11px;color:var(--text3)">300×250</div></div>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <p>뷰티랭크 · 성분 분석 기반 화장품 순위 서비스</p>
+  <p>본 순위는 AI 성분 분석 결과이며 의학적 조언이 아닙니다.</p>
+  <p>데이터 출처: 올리브영 · 성분 분석: Claude AI</p>
+  <p style="margin-top:8px"><a href="#">광고 문의</a> · <a href="#">제품 등록 요청</a> · <a href="#">이용약관</a></p>
+</footer>
+
+<script>
+const CATEGORY_TREE = [
+  {name:"스킨케어",    subs:["스킨/토너","에센스/세럼/앰플","크림","로션","미스트/오일"]},
+  {name:"마스크팩",    subs:["시트팩","패드"]},
+  {name:"클렌징",      subs:["클렌징폼/젤","오일/밤"]},
+  {name:"선케어",      subs:["선크림","선스틱","선쿠션"]},
+  {name:"메이크업",    subs:["립메이크업","베이스메이크업","아이메이크업"]},
+  {name:"헤어케어",    subs:["샴푸/스케일러","트리트먼트/팩"]},
+  {name:"바디케어",    subs:["샤워/입욕"]},
+  {name:"향수/디퓨저", subs:["향수"]},
+];
+
+const EMOJIS = ["💧","🌿","🧪","🔬","🫧","🌸","🍃","🌺","💙","⚗️","🧬","🌊","🍵","✨"];
+
+let openGroup  = null;
+let activeSub  = null;
+let cachedData = {};  // {카테고리: [제품...]} 캐시
+
+// ── 카테고리 네비 ──────────────────────────────────────────────
+function renderNav() {
+  document.getElementById("cat-nav").innerHTML = CATEGORY_TREE.map(g => {
+    const isOpen = g.name === openGroup;
+    const subs   = g.subs.map(sub => {
+      const hasData = cachedData[sub]?.length > 0;
+      return `<div class="cat-child${activeSub===sub?" active":""}${!hasData?" empty":""}"
+        onclick="${hasData?`selectSub('${sub}')`:""}">
+        ${sub}
+      </div>`;
+    }).join("");
+    return `
+      <div>
+        <div class="cat-parent${isOpen?" open":""}" onclick="toggleGroup('${g.name}')">
+          ${g.name}
+          <span class="cat-arrow">›</span>
+        </div>
+        <div class="cat-children${isOpen?" open":""}">${subs}</div>
+      </div>`;
+  }).join("");
+}
+
+function toggleGroup(name) {
+  openGroup = openGroup === name ? null : name;
+  renderNav();
+}
+
+// ── 제품 목록 렌더 ──────────────────────────────────────────────
+function renderProducts(sub) {
+  const products = cachedData[sub] || [];
+  document.getElementById("page-title").textContent = sub;
+  document.getElementById("page-sub").textContent =
+    `성분 분석 기준 TOP ${products.length} · 올리브영 판매순`;
+
+  if (!products.length) {
+    document.getElementById("product-list").innerHTML = `
+      <div class="empty-state">
+        <h3>데이터 준비중</h3>
+        <p>다음 월간 업데이트를 기다려주세요.</p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById("product-list").innerHTML = products.map((p, i) => {
+    const rank  = i + 1;
+    const cls   = rank===1?"gold":rank===2?"silver":rank===3?"bronze":"";
+    const score = p.score || 0;
+    const scoreColor = score>=90?"#c9666b":score>=80?"#854f0b":"#9ba5aa";
+    const highlights = (p.highlights||[]).slice(0,2)
+      .map(t=>`<span class="tag tag-good">#${t}</span>`).join("");
+    const warnings = (p.warnings||[]).slice(0,1)
+      .map(t=>`<span class="tag tag-warn">⚠ ${t}</span>`).join("");
+    const imgHtml = p.image_url
+      ? `<img src="${p.image_url}" alt="" loading="lazy" onerror="this.parentNode.textContent='${EMOJIS[rank%EMOJIS.length]}'"/>`
+      : EMOJIS[rank % EMOJIS.length];
+
+    return `
+    <a class="product-card ${cls}" href="${p.url||"#"}" target="_blank" rel="noopener">
+      <div class="rank-num">${rank}</div>
+      <div class="product-img">${imgHtml}</div>
+      <div>
+        <div class="p-brand">${p.brand||""}</div>
+        <div class="p-name">${p.name||""}</div>
+        <div class="p-tags">${highlights}${warnings}</div>
+        <div class="p-summary">${p.summary||""}</div>
+      </div>
+      <div class="score-box">
+        <div class="score-ring" style="border-color:${scoreColor}">
+          <div class="score-num" style="color:${scoreColor}">${score||"-"}</div>
+          <div class="score-unit">점</div>
+        </div>
+        <div class="score-grade" style="color:${scoreColor}">${p.grade||"-"}</div>
+      </div>
+    </a>`;
+  }).join("");
+}
+
+async function selectSub(sub) {
+  activeSub = sub;
+  renderNav();
+
+  // 캐시 있으면 바로 렌더
+  if (cachedData[sub]) {
+    renderProducts(sub);
+    return;
+  }
+
+  document.getElementById("product-list").innerHTML = `<div class="loading">불러오는 중...</div>`;
+
+  // Supabase에서 해당 카테고리 최신 순위 조회
+  const {data, error} = await sb
+    .from("latest_rankings")
+    .select("*")
+    .eq("category", sub)
+    .order("rank");
+
+  if (error) {
+    document.getElementById("product-list").innerHTML =
+      `<div class="empty-state"><h3>오류</h3><p>${error.message}</p></div>`;
+    return;
+  }
+
+  cachedData[sub] = data;
+  renderProducts(sub);
+}
+
+// ── 초기화 ─────────────────────────────────────────────────────
+async function init() {
+  // 최신 업데이트 날짜 조회
+  const {data} = await sb
+    .from("rankings")
+    .select("ranked_at")
+    .order("ranked_at", {ascending:false})
+    .limit(1);
+
+  if (data?.length) {
+    const d = new Date(data[0].ranked_at);
+    document.getElementById("updated-badge").textContent =
+      `최종 업데이트: ${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()}`;
+  } else {
+    document.getElementById("updated-badge").textContent = "데이터 없음";
+  }
+
+  // 데이터 있는 카테고리 파악
+  const {data: cats} = await sb
+    .from("rankings")
+    .select("category");
+
+  const hasCats = new Set((cats||[]).map(r=>r.category));
+
+  // 카테고리 중 데이터 있는 것 표시
+  for (const g of CATEGORY_TREE) {
+    for (const sub of g.subs) {
+      if (hasCats.has(sub)) cachedData[sub] = null; // null = 있지만 아직 미로드
+    }
+  }
+
+  // 첫 번째 데이터 있는 카테고리 자동 선택
+  for (const g of CATEGORY_TREE) {
+    for (const sub of g.subs) {
+      if (cachedData[sub] !== undefined) {
+        openGroup = g.name;
+        renderNav();
+        await selectSub(sub);
+        return;
+      }
+    }
+  }
+
+  renderNav();
+  document.getElementById("product-list").innerHTML = `
+    <div class="empty-state">
+      <h3>데이터가 없습니다</h3>
+      <p>GitHub Actions가 실행되면 자동으로 채워집니다.</p>
+    </div>`;
+}
+
+init();
+</script>
+</body>
+</html>
