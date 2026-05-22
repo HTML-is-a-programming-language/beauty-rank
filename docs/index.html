@@ -118,8 +118,8 @@ footer a{color:var(--rose);text-decoration:none}
 
 <!-- ★ Supabase 설정 — 본인 값으로 교체 -->
 <script>
-const SUPABASE_URL  = "https://nzhcvslpjbfemxozjhvz.supabase.co";  // ← 교체
-const SUPABASE_ANON = "sb_publishable_PTe1GWN8Ri4upyPnYu7I6A_4SA1l_l3";  // ← 교체
+const SUPABASE_URL  = "https://xxxxxxxxxxxxxxxx.supabase.co";  // ← 교체
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";  // ← 교체
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 </script>
 
@@ -304,7 +304,7 @@ async function selectSub(sub) {
     .from("latest_rankings")
     .select("*")
     .eq("category", sub)
-    .order("rank");
+    .order("score", {ascending: false});
 
   if (error) {
     document.getElementById("product-list").innerHTML =
@@ -333,9 +333,9 @@ async function init() {
     document.getElementById("updated-badge").textContent = "데이터 없음";
   }
 
-  // 데이터 있는 카테고리 파악
+  // 데이터 있는 카테고리 파악 (latest_rankings 뷰에서 distinct하게)
   const {data: cats} = await sb
-    .from("rankings")
+    .from("latest_rankings")
     .select("category");
 
   const hasCats = new Set((cats||[]).map(r=>r.category));
